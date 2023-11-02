@@ -1,65 +1,50 @@
 # clear
 rm(list=ls())
 
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, dplyr, lubridate, zoo, DescTools, psych, here, janitor, cobalt, tidyr, ggplot2,
+               data.table, naniar, stringi) 
+
+
 # Import Data -------------------------------------------------------------
 
 # google reviews 
-df <- read.csv(file="data/output/google_reviews_mcrnum.csv", header=T, skipNul = T, na.strings=c(""," ","NA"))
+df <- read.csv(file="data/input/google_reviews.csv", header=T, skipNul = T, na.strings=c(""," ","NA"))
+
+
+# summary of raw data -----------------------------------------------------
+
+# # only needed to review data -- no need to run to get output dataset.
+# 
+# # rating
+# tbl <- table(df$rating)
+# tbl <- cbind(tbl,prop.table(tbl))
+# tbl <- tbl %>% 
+#   as.data.frame() %>%
+#   rename(pct_lang = V2) %>% 
+#   mutate(pct_lang = round(pct_lang*100,2))
+# 
+# 
+# # language and reviews 
+# tbl <- table(df$language)
+# tbl <- cbind(tbl,prop.table(tbl))
+# tbl <- tbl %>% 
+#   as.data.frame() %>%
+#   rename(pct_lang = V2) %>% 
+#   mutate(pct_lang = round(pct_lang*100,2))
+
 
 
 # Prep variables  ---------------------------------------------------------
 
 df <- df %>% 
-  subset(select=c(year, MCRNUM)) %>% 
-  unique() %>% 
-  drop_na(MCRNUM) %>% 
-  group_by(MCRNUM) %>% 
-  mutate(min_year = min(year))
-
-
-yrs <- data.frame(year = c(min(df$year):max(df$year)))
-
-hosp <- df %>% 
-  subset(select=c(MCRNUM)) %>%
-  unique() 
-
-# year x hospital df 
-yxh <- full_join(yrs, hosp, by=character())
-
-# year x hospital plus reviews df 
-yxhpr <- left_join(yxh, df, by=c("year", "MCRNUM")) %>% 
-  group_by(MCRNUM) %>% 
-  fill(min_year, .direction = "downup") %>% 
-  mutate(rated = ifelse(year>=min_year, 1, 0)) %>% 
-  subset(select=c(year, rated)) %>% 
-  group_by(year) %>% 
-  summarise(rated = sum(rated))
-
-
-google_profiles <- yxhpr
-
-
-
-# google reviews 
-df <- read.csv(file="data/output/google_reviews_mcrnum.csv", header=T, skipNul = T, na.strings=c(""," ","NA"))
-
-
-# Prep variables  ---------------------------------------------------------
-
-df <- df %>% 
-  subset(select=c(year, MCRNUM)) %>% 
-  drop_na(MCRNUM) %>% 
-  group_by(MCRNUM, year) %>% 
-  mutate(ann_revs = n()) %>% 
-  unique() %>%
-  arrange(MCRNUM, year) %>% 
-  group_by(MCRNUM) %>%
-  mutate(cumu_revs = cumsum(ann_revs)) %>% 
-  subset(select=-c(MCRNUM)) %>% 
-  group_by(year) %>%
-  summarise(ann_revs=sum(ann_revs), cumu_revs=sum(cumu_revs))
-
-google_reviews <- df
+  mutate(text = ifelse(language=="en", text, NA)) %>% # only keep the reviews that are english, but keep all observations 
+  mutate(datetime = anydate(datetime)) %>% # modify date format
+  mutate(year = year(datetime)) %>% 
+  mutate(hosp_name = str_trim(tolower(hosp_name))) %>%
+  mutate(hosp_address = str_trim(tolower(hosp_address))) %>% 
+  drop_na(rating)
 
   
 
